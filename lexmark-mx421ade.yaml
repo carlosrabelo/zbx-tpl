@@ -1,0 +1,91 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: 36bff6c29af64692839d077febfc7079
+    name: Templates/Network devices
+  templates:
+  - uuid: 42dc9b871d3e4e128401cf8e0f78a1eb
+    template: Lexmark MX421ade
+    name: Lexmark MX421ade
+    groups:
+    - name: Templates/Network devices
+    discovery_rules:
+    - uuid: f9a6707b50f44bf5bc12a6d53812fdb3
+      name: Printer supplies discovery
+      type: SNMP_AGENT
+      snmp_oid: discovery[{#MARKER},1.3.6.1.2.1.43.11.1.1.2,{#SUPINDEX},1.3.6.1.2.1.43.11.1.1.3,{#SUP_DESC},1.3.6.1.2.1.43.11.1.1.6]
+      key: prtMarkerSuppliesLevel
+      delay: 1h
+      filter:
+        conditions:
+        - macro: '{#SUP_DESC}'
+          value: '.*[Mm]aintenance.*'
+          operator: NOT_MATCHES_REGEX
+          formulaid: A
+      item_prototypes:
+      - uuid: 1ae0802b574d44e2a740bd0737b984a6
+        name: Toner level [%] – [{#SUP_DESC}]
+        type: CALCULATED
+        key: printer.toner.level.pct[{#MARKER},{#SUPINDEX}]
+        value_type: FLOAT
+        params: "100*last(//printer.toner.level.raw[{#MARKER},{#SUPINDEX}])/(last(//printer.toner.max.raw[{#MARKER},{#SUPINDEX}])+0.000001)"
+        tags:
+        - tag: component
+          value: health
+        - tag: resource
+          value: toner
+        trigger_prototypes:
+        - uuid: 60ce202ca872443492bf51b8a873194e
+          expression: last(/Lexmark MX421ade/printer.toner.level.pct[{#MARKER},{#SUPINDEX}])<10
+          name: Toner low – [{#SUP_DESC}] < 10%
+          priority: WARNING
+          tags:
+          - tag: component
+            value: health
+          - tag: resource
+            value: toner
+        - uuid: e967d40324ac450abeb93c01990e919b
+          expression: last(/Lexmark MX421ade/printer.toner.level.pct[{#MARKER},{#SUPINDEX}])<5
+          name: Toner very low – [{#SUP_DESC}] < 5%
+          priority: HIGH
+          tags:
+          - tag: component
+            value: health
+          - tag: resource
+            value: toner
+        units: '%'
+      - uuid: 3be9a774afab4ddfa53f1a39a3f035b3
+        name: Toner level (raw) – [{#SUP_DESC}]
+        type: SNMP_AGENT
+        snmp_oid: 1.3.6.1.2.1.43.11.1.1.9.{#MARKER}.{#SUPINDEX}
+        key: printer.toner.level.raw[{#MARKER},{#SUPINDEX}]
+        value_type: FLOAT
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'return (value < 0 || value >= 200000) ? null : value;'
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: health
+        - tag: resource
+          value: toner
+      - uuid: af065e01b6f147afb4eec18d20513cbf
+        name: Toner max capacity (raw) – [{#SUP_DESC}]
+        type: SNMP_AGENT
+        snmp_oid: 1.3.6.1.2.1.43.11.1.1.8.{#MARKER}.{#SUPINDEX}
+        key: printer.toner.max.raw[{#MARKER},{#SUPINDEX}]
+        value_type: FLOAT
+        preprocessing:
+        - type: DISCARD_UNCHANGED
+          parameters:
+          - 1h
+        - type: JAVASCRIPT
+          parameters:
+          - 'return (value <= 0 || value >= 200000) ? null : value;'
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: health
+        - tag: resource
+          value: toner

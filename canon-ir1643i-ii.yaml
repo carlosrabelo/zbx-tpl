@@ -1,0 +1,85 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: 36bff6c29af64692839d077febfc7079
+    name: Templates/Network devices
+  templates:
+  - uuid: 589bea21a2344dc0b51c6331713e551a
+    template: Canon iR1643i II
+    name: Canon iR1643i II
+    groups:
+    - name: Templates/Network devices
+    discovery_rules:
+    - uuid: dca59310f7d24eee8a37bcfb99c72f39
+      name: Printer supplies discovery
+      type: SNMP_AGENT
+      snmp_oid: discovery[{#MARKER},1.3.6.1.2.1.43.11.1.1.2,{#SUPINDEX},1.3.6.1.2.1.43.11.1.1.3,{#SUP_DESC},1.3.6.1.2.1.43.11.1.1.6]
+      key: prtMarkerSuppliesLevel
+      delay: 1h
+      item_prototypes:
+      - uuid: 6e857ce287f244269dd88839c011c442
+        name: Toner level [%] – [{#SUP_DESC}]
+        type: CALCULATED
+        key: printer.toner.level.pct[{#MARKER},{#SUPINDEX}]
+        value_type: FLOAT
+        params: "100*last(//printer.toner.level.raw[{#MARKER},{#SUPINDEX}])/(last(//printer.toner.max.raw[{#MARKER},{#SUPINDEX}])+0.000001)"
+        tags:
+        - tag: component
+          value: health
+        - tag: resource
+          value: toner
+        trigger_prototypes:
+        - uuid: f6012a4559e04ac28707d9fc4d41a4b7
+          expression: last(/Canon iR1643i II/printer.toner.level.pct[{#MARKER},{#SUPINDEX}])<10
+          name: Toner low – [{#SUP_DESC}] < 10%
+          priority: WARNING
+          tags:
+          - tag: component
+            value: health
+          - tag: resource
+            value: toner
+        - uuid: 61345eef2e55430c92c1b51218c33bb7
+          expression: last(/Canon iR1643i II/printer.toner.level.pct[{#MARKER},{#SUPINDEX}])<5
+          name: Toner very low – [{#SUP_DESC}] < 5%
+          priority: HIGH
+          tags:
+          - tag: component
+            value: health
+          - tag: resource
+            value: toner
+        units: '%'
+      - uuid: 75298667738c48b5b3c5f71362a6e7d8
+        name: Toner level (raw) – [{#SUP_DESC}]
+        type: SNMP_AGENT
+        snmp_oid: 1.3.6.1.2.1.43.11.1.1.9.{#MARKER}.{#SUPINDEX}
+        key: printer.toner.level.raw[{#MARKER},{#SUPINDEX}]
+        value_type: FLOAT
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value < 0 ? 0 : value;'
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: health
+        - tag: resource
+          value: toner
+      - uuid: 28c9d157c2eb464786f4184f615220fa
+        name: Toner max capacity (raw) – [{#SUP_DESC}]
+        type: SNMP_AGENT
+        snmp_oid: 1.3.6.1.2.1.43.11.1.1.8.{#MARKER}.{#SUPINDEX}
+        key: printer.toner.max.raw[{#MARKER},{#SUPINDEX}]
+        value_type: FLOAT
+        preprocessing:
+        - type: DISCARD_UNCHANGED
+          parameters:
+          - 1h
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value <= 0 ? null : value;'
+          error_handler: DISCARD_VALUE
+        tags:
+        - tag: component
+          value: health
+        - tag: resource
+          value: toner

@@ -27,8 +27,8 @@ zabbix_export:
         name: Toner level [%] – [{#SUP_DESC}]
         type: CALCULATED
         key: printer.toner.level.pct[{#MARKER},{#SUPINDEX}]
-        value_type: FLOAT
-        params: "100*last(//printer.toner.level.raw[{#MARKER},{#SUPINDEX}])/(last(//printer.toner.max.raw[{#MARKER},{#SUPINDEX}])+0.000001)"
+        value_type: UNSIGNED
+        params: "floor(100*last(//printer.toner.level.raw[{#MARKER},{#SUPINDEX}])/(last(//printer.toner.max.raw[{#MARKER},{#SUPINDEX}])+0.000001))"
         tags:
         - tag: component
           value: health

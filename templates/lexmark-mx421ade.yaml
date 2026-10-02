@@ -1,0 +1,188 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 42dc9b871d3e4e128401cf8e0f78a1eb
+      template: 'Lexmark MX421ade'
+      name: 'Lexmark MX421ade'
+      templates:
+        - name: 'Generic by SNMP'
+      groups:
+        - name: 'Templates/Network devices'
+      discovery_rules:
+        - uuid: f9a6707b50f44bf5bc12a6d53812fdb3
+          name: 'Printer supplies discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SUP_DESC},1.3.6.1.2.1.43.11.1.1.6]'
+          key: prtMarkerSuppliesLevel
+          delay: 1h
+          filter:
+            conditions:
+              - macro: '{#SUP_DESC}'
+                value: '.*([Cc]artridge|[Tt]oner).*'
+                operator: MATCHES_REGEX
+          item_prototypes:
+            - uuid: 1ae0802b574d44e2a740bd0737b984a6
+              name: 'Toner level [%] – [{#SUP_DESC}]'
+              type: CALCULATED
+              key: 'printer.toner.level.pct[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//printer.toner.level.raw[{#SNMPINDEX}])/(last(//printer.toner.max.raw[{#SNMPINDEX}])+0.000001)'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+              trigger_prototypes:
+                - uuid: 60ce202ca872443492bf51b8a873194e
+                  expression: 'last(/Lexmark MX421ade/printer.toner.level.pct[{#SNMPINDEX}])<10'
+                  name: 'Toner low – [{#SUP_DESC}] < 10%'
+                  priority: WARNING
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: resource
+                      value: toner
+                - uuid: e967d40324ac450abeb93c01990e919b
+                  expression: 'last(/Lexmark MX421ade/printer.toner.level.pct[{#SNMPINDEX}])<5'
+                  name: 'Toner very low – [{#SUP_DESC}] < 5%'
+                  priority: HIGH
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: resource
+                      value: toner
+            - uuid: 3be9a774afab4ddfa53f1a39a3f035b3
+              name: 'Toner level (raw) – [{#SUP_DESC}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.9.{#SNMPINDEX}'
+              key: 'printer.toner.level.raw[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return (value < 0 || value >= 200000) ? null : value;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+            - uuid: af065e01b6f147afb4eec18d20513cbf
+              name: 'Toner max capacity (raw) – [{#SUP_DESC}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.8.{#SNMPINDEX}'
+              key: 'printer.toner.max.raw[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return (value <= 0 || value >= 200000) ? null : value;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+          graph_prototypes:
+            - uuid: eb252bb6469f44a7bfdb39329e9796dd
+              name: 'Toner level [%] – [{#SUP_DESC}]'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              yaxismin: '0'
+              yaxismax: '100'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'Lexmark MX421ade'
+                    key: 'printer.toner.level.pct[{#SNMPINDEX}]'
+        - uuid: 3a16e7d874984a288f1072cb8de2519c
+          name: 'Imaging unit discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SUP_DESC},1.3.6.1.2.1.43.11.1.1.6]'
+          key: prtMarkerSuppliesImaging
+          delay: 1h
+          filter:
+            conditions:
+              - macro: '{#SUP_DESC}'
+                value: '.*[Ii]maging.*'
+                operator: MATCHES_REGEX
+          item_prototypes:
+            - uuid: f263594bff25469eac3d8f327bf11915
+              name: 'Imaging unit level [%] – [{#SUP_DESC}]'
+              type: CALCULATED
+              key: 'printer.imaging.level.pct[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//printer.imaging.level.raw[{#SNMPINDEX}])/(last(//printer.imaging.max.raw[{#SNMPINDEX}])+0.000001)'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: imaging
+              trigger_prototypes:
+                - uuid: 68565273db1c476fb3628275656bc85f
+                  expression: 'last(/Lexmark MX421ade/printer.imaging.level.pct[{#SNMPINDEX}])<10'
+                  name: 'Imaging unit low – [{#SUP_DESC}] < 10%'
+                  priority: WARNING
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: resource
+                      value: imaging
+                - uuid: 8552277b55e3473db3ad034714228344
+                  expression: 'last(/Lexmark MX421ade/printer.imaging.level.pct[{#SNMPINDEX}])<5'
+                  name: 'Imaging unit very low – [{#SUP_DESC}] < 5%'
+                  priority: HIGH
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: resource
+                      value: imaging
+            - uuid: 017c1ce8ecda449a830c505a90dd6107
+              name: 'Imaging unit level (raw) – [{#SUP_DESC}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.9.{#SNMPINDEX}'
+              key: 'printer.imaging.level.raw[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return (value < 0 || value >= 200000) ? null : value;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: imaging
+            - uuid: 20439812ec9841ac9227e9719cdd9813
+              name: 'Imaging unit max capacity (raw) – [{#SUP_DESC}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.8.{#SNMPINDEX}'
+              key: 'printer.imaging.max.raw[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return (value <= 0 || value >= 200000) ? null : value;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: imaging
+          graph_prototypes:
+            - uuid: a982a58719ba4cc7bd4174223c7e2750
+              name: 'Imaging unit level [%] – [{#SUP_DESC}]'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              yaxismin: '0'
+              yaxismax: '100'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 2774A6
+                  item:
+                    host: 'Lexmark MX421ade'
+                    key: 'printer.imaging.level.pct[{#SNMPINDEX}]'

@@ -1,0 +1,101 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 094123dc38014d11bef81e4a0e89eeed
+      template: 'HP LaserJet M402n'
+      name: 'HP LaserJet M402n'
+      templates:
+        - name: 'Generic by SNMP'
+      groups:
+        - name: 'Templates/Network devices'
+      discovery_rules:
+        - uuid: d6871d7c3a5f416eb30b2e44f3ca7151
+          name: 'Printer supplies discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SUP_DESC},1.3.6.1.2.1.43.11.1.1.6]'
+          key: prtMarkerSuppliesLevel
+          delay: 1h
+          filter:
+            conditions:
+              - macro: '{#SUP_DESC}'
+                value: '.*([Cc]artridge|[Tt]oner).*'
+                operator: MATCHES_REGEX
+          item_prototypes:
+            - uuid: 12014964f12445dea02b342fbf9739c6
+              name: 'Toner level [%] – [{#SUP_DESC}]'
+              type: CALCULATED
+              key: 'printer.toner.level.pct[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//printer.toner.level.raw[{#SNMPINDEX}])/(last(//printer.toner.max.raw[{#SNMPINDEX}])+0.000001)'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+              trigger_prototypes:
+                - uuid: 848b4260fc8e4a6b9bfc65c5a979a43c
+                  expression: 'last(/HP LaserJet M402n/printer.toner.level.pct[{#SNMPINDEX}])<10'
+                  name: 'Toner low – [{#SUP_DESC}] < 10%'
+                  priority: WARNING
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: resource
+                      value: toner
+                - uuid: 65c2050391f04df393bcb950eb8b46ab
+                  expression: 'last(/HP LaserJet M402n/printer.toner.level.pct[{#SNMPINDEX}])<5'
+                  name: 'Toner very low – [{#SUP_DESC}] < 5%'
+                  priority: HIGH
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: resource
+                      value: toner
+            - uuid: e6ffda16c5fa4d1e8b7a35b1c69d97e0
+              name: 'Toner level (raw) – [{#SUP_DESC}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.9.{#SNMPINDEX}'
+              key: 'printer.toner.level.raw[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return (value < 0 || value >= 200000) ? null : value;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+            - uuid: 7c4a91e2b8d64f0a9e3c15d8a6b24710
+              name: 'Toner max capacity (raw) – [{#SUP_DESC}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.8.{#SNMPINDEX}'
+              key: 'printer.toner.max.raw[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return (value <= 0 || value >= 200000) ? null : value;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+          graph_prototypes:
+            - uuid: 3279a30aee0f4a3f832d27e91b21c16a
+              name: 'Toner level [%] – [{#SUP_DESC}]'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              yaxismin: '0'
+              yaxismax: '100'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'HP LaserJet M402n'
+                    key: 'printer.toner.level.pct[{#SNMPINDEX}]'

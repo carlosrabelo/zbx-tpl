@@ -46,7 +46,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'printer.toner.level.pct[{#SNMPINDEX}]'
               delay: '0'
-              value_type: FLOAT
+              value_type: UNSIGNED
               units: '%'
               preprocessing:
                 - type: JAVASCRIPT
@@ -126,9 +126,13 @@ zabbix_export:
               name: 'Unit level [%] – [{#SUP_DESC}]'
               type: CALCULATED
               key: 'printer.unit.level.pct[{#SNMPINDEX}]'
-              value_type: FLOAT
+              value_type: UNSIGNED
               units: '%'
               params: '100*last(//printer.unit.level.raw[{#SNMPINDEX}])/(last(//printer.unit.max.raw[{#SNMPINDEX}])+0.000001)'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return Math.round(value);'
               tags:
                 - tag: component
                   value: health

@@ -30,11 +30,11 @@ zabbix_export:
               key: 'printer.toner.level.pct[{#SNMPINDEX}]'
               value_type: UNSIGNED
               units: '%'
-              params: '100*last(//printer.toner.level.raw[{#SNMPINDEX}])/(last(//printer.toner.max.raw[{#SNMPINDEX}])+0.000001)'
+              params: 'last(//printer.toner.level.raw[{#SNMPINDEX}])+(last(//printer.toner.max.raw[{#SNMPINDEX}])/1000000)'
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
-                    - 'return Math.round(value);'
+                    - 'var n=Number(value);if(!isFinite(n)||n<0)return 0;var level=Math.floor(n+1e-9);var max=Math.round((n-level)*1000000);if(max<=0)return level<=100?level:0;var pct=Math.round(100*level/max);if(pct<0)return 0;if(pct>100)return 100;return pct;'
               tags:
                 - tag: component
                   value: health
@@ -54,6 +54,7 @@ zabbix_export:
                   expression: 'last(/HP LaserJet M402n/printer.toner.level.pct[{#SNMPINDEX}])<5'
                   name: 'Toner very low – [{#SUP_DESC}] < 5%'
                   priority: HIGH
+                  description: 'A Printer-MIB level of -1, -2, or -3 is stored as 0%. That covers a missing cartridge and an unknown level, which used to keep the previous percentage.'
                   tags:
                     - tag: component
                       value: health
@@ -68,7 +69,7 @@ zabbix_export:
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
-                    - 'return (value < 0 || value >= 200000) ? null : value;'
+                    - 'var v=parseInt(value,10);if(isNaN(v))return 0;if(v>2147483647)v=v-4294967296;if(v<0)return 0;return v;'
               tags:
                 - tag: component
                   value: health
@@ -84,7 +85,7 @@ zabbix_export:
                 - type: DISCARD_UNCHANGED
                 - type: JAVASCRIPT
                   parameters:
-                    - 'return (value <= 0 || value >= 200000) ? null : value;'
+                    - 'var v=parseInt(value,10);if(isNaN(v))return 0;if(v>2147483647)v=v-4294967296;if(v<=0)return 0;return v;'
               tags:
                 - tag: component
                   value: health

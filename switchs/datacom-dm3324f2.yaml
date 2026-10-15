@@ -1,0 +1,738 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 97daf845a2814848a4a16bd54544e2ed
+      template: 'Datacom DM3324F2 by SNMP'
+      name: 'Datacom DM3324F2 by SNMP'
+      description: |
+        Datacom DM3324F2 (DMswitch-MIB, enterprise 1.3.6.1.4.1.3709). Confirmed on firmware 11.2.12.
+        Covers reachability, identity, CPU, memory, temperature, fans, power supplies, alarms, and ethernet interfaces.
+        Ports eth-1/1–eth-1/24 are 10/100. Ports eth-1/25–eth-1/28 are gigabit. This model has no PoE.
+        Do not also link Generic by SNMP, Datacom Device by SNMP, or Datacom DM1200E by SNMP. Those templates share keys such as icmpping and system.name.
+      groups:
+        - name: 'Templates/Network devices'
+      macros:
+        - macro: '{$CPU.UTIL.CRIT}'
+          value: '90'
+          description: 'CPU utilization threshold, percent. swCpuUsage is stored in hundredths of a percent.'
+        - macro: '{$MEMORY.UTIL.MAX}'
+          value: '90'
+          description: 'Memory utilization threshold, percent. swMemUsage is already a percentage.'
+        - macro: '{$TEMP.MAX}'
+          value: '75'
+          description: 'Temperature threshold in Celsius. This chassis idles around 31.'
+        - macro: '{$IF.UTIL.MAX}'
+          value: '90'
+          description: 'Interface utilization threshold, percent of ifHighSpeed.'
+        - macro: '{$IF.ERRORS.WARN}'
+          value: '2'
+          description: 'Interface error rate threshold, errors per second, sustained for 5 minutes.'
+        - macro: '{$ICMP.LOSS.WARN}'
+          value: '20'
+          description: 'ICMP loss threshold, percent, sustained for 5 minutes.'
+      valuemaps:
+        - uuid: b939c030814847b0b576d5b6c20b3abb
+          name: 'SNMP agent availability'
+          mappings:
+            - value: '0'
+              newvalue: 'not available'
+            - value: '1'
+              newvalue: available
+            - value: '2'
+              newvalue: unknown
+        - uuid: 235f3d21184a473fa0ea5adcacff507c
+          name: 'Interface admin status'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: testing
+        - uuid: 57fd0cb16de84b0fb2938ffc10744f86
+          name: 'Interface operational status'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: testing
+            - value: '4'
+              newvalue: unknown
+            - value: '5'
+              newvalue: dormant
+            - value: '6'
+              newvalue: notPresent
+            - value: '7'
+              newvalue: lowerLayerDown
+        - uuid: fad4151ab5624775866ce3b1332049a8
+          name: 'Fan status'
+          mappings:
+            - value: '1'
+              newvalue: red
+            - value: '2'
+              newvalue: green
+        - uuid: 241f5b94e5bb45268d39734395e4546a
+          name: 'Power supply status'
+          mappings:
+            - value: '1'
+              newvalue: red
+            - value: '2'
+              newvalue: green
+            - value: '3'
+              newvalue: 'not present'
+        - uuid: 618464006dc240dd91aee751202a6ec8
+          name: 'Alarm status'
+          mappings:
+            - value: '1'
+              newvalue: deactivated
+            - value: '2'
+              newvalue: activated
+      items:
+        - uuid: fedbd2d7ca2f4d04a0338f43fe29d8a6
+          name: 'ICMP ping'
+          type: SIMPLE
+          key: icmpping
+          value_type: UNSIGNED
+          description: '1 when the switch answers ICMP echo, 0 otherwise.'
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 19db3e7546b241f0b48b051b4703ad46
+              expression: 'max(/Datacom DM3324F2 by SNMP/icmpping,#3)=0'
+              name: 'Unavailable by ICMP ping'
+              priority: HIGH
+              description: 'The switch missed three ICMP echo checks in a row.'
+        - uuid: b10973504f7b4b6f9266a496ba87a973
+          name: 'ICMP loss'
+          type: SIMPLE
+          key: icmppingloss
+          value_type: FLOAT
+          units: '%'
+          description: 'Percentage of lost ICMP echo replies.'
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: b0cc3c841ea74a12b51cb4a3b2dca035
+              expression: 'min(/Datacom DM3324F2 by SNMP/icmppingloss,5m)>{$ICMP.LOSS.WARN}'
+              name: 'High ICMP ping loss'
+              priority: WARNING
+              description: 'ICMP loss stayed above {$ICMP.LOSS.WARN}% for 5 minutes.'
+              dependencies:
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Datacom DM3324F2 by SNMP/icmpping,#3)=0'
+        - uuid: be3c27be8fa1419aba7fa4fda5f3b80c
+          name: 'ICMP response time'
+          type: SIMPLE
+          key: icmppingsec
+          value_type: FLOAT
+          units: s
+          description: 'Round-trip time of an ICMP echo.'
+          tags:
+            - tag: component
+              value: health
+        - uuid: 2f6ba96b088441d0bc88ebc5bddb66b4
+          name: 'SNMP agent availability'
+          type: INTERNAL
+          key: 'zabbix[host,snmp,available]'
+          value_type: UNSIGNED
+          description: 'Availability of SNMP checks on the host. 0 is not available, 1 is available, 2 is unknown.'
+          valuemap:
+            name: 'SNMP agent availability'
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 63a42ab16521402fa2230c7a3444dc4e
+              expression: 'last(/Datacom DM3324F2 by SNMP/zabbix[host,snmp,available])=0'
+              name: 'No SNMP data collection'
+              priority: HIGH
+              description: 'SNMP checks on this host are failing.'
+              dependencies:
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Datacom DM3324F2 by SNMP/icmpping,#3)=0'
+        - uuid: d90f56b1fe8748d98a545dca064b1571
+          name: 'System name'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.5.0
+          key: system.name
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: SNMPv2-MIB::sysName.0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 068f9e91ad284612a4cf628ad7895c6c
+          name: 'System description'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.1.0
+          key: system.descr
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: SNMPv2-MIB::sysDescr.0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 4cc31f3a21d64b9e817da0a3a6d87d5a
+          name: 'System contact'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.4.0
+          key: system.contact
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: SNMPv2-MIB::sysContact.0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 0c425519cd9e4540948035ae6a6edd7b
+          name: 'System location'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.6.0
+          key: system.location
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: SNMPv2-MIB::sysLocation.0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 62918fea4bb14a019cac5fade4dae766
+          name: 'Uptime'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.3.0
+          key: system.uptime
+          value_type: UNSIGNED
+          units: uptime
+          description: 'MIB: SNMPv2-MIB::sysUpTime.0. Time since the SNMP agent last reinitialized.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: f1b2ba49728e413ebe9756aa902f6c6f
+              expression: 'last(/Datacom DM3324F2 by SNMP/system.uptime)<600'
+              name: 'Switch has been restarted'
+              priority: INFO
+              description: 'Uptime is under 10 minutes.'
+        - uuid: 24b1e512784b42ae8d52025d148ff321
+          name: 'Hardware serial number'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.3709.3.5.201.1.1.2.1.8.1
+          key: system.hw.serialnumber
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: DMswitch-MIB::swSerialNumber.1, unit 1.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: d70d83ded25b4355b354c8beb182f769
+          name: 'Hardware model'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.3709.3.5.201.1.1.2.1.9.1
+          key: system.hw.model
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: DMswitch-MIB::swProdName.1, unit 1.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 2d9f621443564e608f613cd02e20e833
+          name: 'Firmware version'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.3709.3.5.201.1.1.2.1.4.1
+          key: system.hw.firmware
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: DMswitch-MIB::swFirmwareVer.1, unit 1.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 9506f172006d4bfd9f6612e75b5c8f5d
+          name: 'Boot loader version'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.3709.3.5.201.1.1.2.1.3.1
+          key: system.hw.bootloader
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: DMswitch-MIB::swBootLoaderVer.1, unit 1.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 7b6ac2cb0610413e8893f2a84a0a2543
+          name: 'CPU utilization'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.3709.3.5.201.1.1.10.0
+          key: system.cpu.util
+          value_type: FLOAT
+          units: '%'
+          description: 'MIB: DMswitch-MIB::swCpuUsage.0. The agent reports hundredths of a percent for the last minute.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: 90deed2204b34ed3b7b1731ebf754d76
+              expression: 'min(/Datacom DM3324F2 by SNMP/system.cpu.util,5m)>{$CPU.UTIL.CRIT}'
+              name: 'High CPU utilization'
+              priority: WARNING
+              description: 'CPU utilization stayed above {$CPU.UTIL.CRIT}% for 5 minutes.'
+        - uuid: 45dbb0d157c941f68f9fd8504b813f10
+          name: 'Memory utilization'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.3709.3.5.201.1.1.11.0
+          key: vm.memory.util
+          value_type: FLOAT
+          units: '%'
+          description: 'MIB: DMswitch-MIB::swMemUsage.0. Already a percentage.'
+          tags:
+            - tag: component
+              value: memory
+          triggers:
+            - uuid: de3c00c08d434339b3d1ed99716e66d9
+              expression: 'min(/Datacom DM3324F2 by SNMP/vm.memory.util,5m)>{$MEMORY.UTIL.MAX}'
+              name: 'High memory utilization'
+              priority: WARNING
+              description: 'Memory utilization stayed above {$MEMORY.UTIL.MAX}% for 5 minutes.'
+        - uuid: f3701751c07d4563a545c266bb4092f1
+          name: 'Temperature'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.3709.3.5.201.1.1.2.1.12.1
+          key: sensor.temp.value
+          value_type: FLOAT
+          units: '°C'
+          description: 'MIB: DMswitch-MIB::swTemperature.1, unit 1.'
+          tags:
+            - tag: component
+              value: temperature
+          triggers:
+            - uuid: 9cba61a8cf4846788c55e0066aa6f937
+              expression: 'min(/Datacom DM3324F2 by SNMP/sensor.temp.value,5m)>{$TEMP.MAX}'
+              name: 'Temperature is above {$TEMP.MAX}°C'
+              priority: HIGH
+              description: 'The chassis temperature stayed above {$TEMP.MAX}°C for 5 minutes.'
+      discovery_rules:
+        - uuid: 745e745573144ecd8321b78cf82046b3
+          name: 'Network interface discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFDESCR},1.3.6.1.2.1.2.2.1.2,{#IFTYPE},1.3.6.1.2.1.2.2.1.3,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18]'
+          key: net.if.discovery
+          delay: 1h
+          description: 'IF-MIB interfaces of type ethernetCsmacd(6). On the DM3324F2 that is eth-1/1–eth-1/28. Ports 1–24 are 10/100 and ports 25–28 are gigabit.'
+          filter:
+            conditions:
+              - macro: '{#IFTYPE}'
+                value: '^6$'
+                operator: MATCHES_REGEX
+          item_prototypes:
+            - uuid: 542900ffe3884de58dfa286318f01c10
+              name: 'Interface [{#IFNAME}]: Admin status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.7.{#SNMPINDEX}'
+              key: 'net.if.admin[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: IF-MIB::ifAdminStatus. {#IFDESCR} {#IFALIAS}'
+              valuemap:
+                name: 'Interface admin status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: bca1750ce11146ef8a5dcb3ce8d2691d
+              name: 'Interface [{#IFNAME}]: Operational status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
+              key: 'net.if.status[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: IF-MIB::ifOperStatus. {#IFDESCR} {#IFALIAS}'
+              valuemap:
+                name: 'Interface operational status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 912734d6ccf2441f9a68fd7565c2d0b1
+                  expression: 'last(/Datacom DM3324F2 by SNMP/net.if.status[{#SNMPINDEX}])=2 and last(/Datacom DM3324F2 by SNMP/net.if.admin[{#SNMPINDEX}])=1'
+                  name: 'Interface [{#IFNAME}]: Link down'
+                  priority: AVERAGE
+                  status: DISABLED
+                  description: '{#IFDESCR} is administratively up and operationally down. Disabled until link-state problems are wanted; status and traffic are still collected.'
+                  tags:
+                    - tag: component
+                      value: network
+                    - tag: interface
+                      value: '{#IFNAME}'
+            - uuid: d77707ebbea441d6ad56370c35c25498
+              name: 'Interface [{#IFNAME}]: Bits received'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.6.{#SNMPINDEX}'
+              key: 'net.if.in[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: bps
+              description: 'MIB: IF-MIB::ifHCInOctets, converted to bits per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 408af14b6bc3422c83063a6011edefe8
+              name: 'Interface [{#IFNAME}]: Bits sent'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.10.{#SNMPINDEX}'
+              key: 'net.if.out[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: bps
+              description: 'MIB: IF-MIB::ifHCOutOctets, converted to bits per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: f7f53b012802417c9b1b7accdb22e6df
+              name: 'Interface [{#IFNAME}]: Inbound utilization'
+              type: CALCULATED
+              key: 'net.if.in.util[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//net.if.in[{#SNMPINDEX}])/(last(//net.if.speed[{#SNMPINDEX}])*1000000+0.000001)'
+              description: 'Inbound bits per second as a percentage of ifHighSpeed. A down link with speed 0 stores 0.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var n = parseFloat(value);
+                      if (!isFinite(n) || n < 0 || n > 1000) return 0;
+                      return Math.round(n * 10) / 10;
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 4bef315654324e378bf1c2a0111e4fd2
+                  expression: 'min(/Datacom DM3324F2 by SNMP/net.if.in.util[{#SNMPINDEX}],5m)>{$IF.UTIL.MAX}'
+                  name: 'Interface [{#IFNAME}]: High inbound utilization'
+                  priority: WARNING
+                  description: 'Inbound utilization stayed above {$IF.UTIL.MAX}% for 5 minutes.'
+            - uuid: 06e7d9011e304bf08b60af8c8952ac7e
+              name: 'Interface [{#IFNAME}]: Outbound utilization'
+              type: CALCULATED
+              key: 'net.if.out.util[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//net.if.out[{#SNMPINDEX}])/(last(//net.if.speed[{#SNMPINDEX}])*1000000+0.000001)'
+              description: 'Outbound bits per second as a percentage of ifHighSpeed. A down link with speed 0 stores 0.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var n = parseFloat(value);
+                      if (!isFinite(n) || n < 0 || n > 1000) return 0;
+                      return Math.round(n * 10) / 10;
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 9f1de4963a3c4cfbb801c38639b914d1
+                  expression: 'min(/Datacom DM3324F2 by SNMP/net.if.out.util[{#SNMPINDEX}],5m)>{$IF.UTIL.MAX}'
+                  name: 'Interface [{#IFNAME}]: High outbound utilization'
+                  priority: WARNING
+                  description: 'Outbound utilization stayed above {$IF.UTIL.MAX}% for 5 minutes.'
+            - uuid: 17b813c15f5643ae85775c753d1ad7dc
+              name: 'Interface [{#IFNAME}]: Speed'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.15.{#SNMPINDEX}'
+              key: 'net.if.speed[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              units: Mbps
+              description: 'MIB: IF-MIB::ifHighSpeed. Current bandwidth in megabits per second. Down links report 0.'
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 849fa0f0fc2144f391ba7621f6936109
+              name: 'Interface [{#IFNAME}]: Inbound errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.14.{#SNMPINDEX}'
+              key: 'net.if.in.errors[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: eps
+              description: 'MIB: IF-MIB::ifInErrors, as errors per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 7785ccd902a641a49b5a9566ba966c4f
+                  expression: 'min(/Datacom DM3324F2 by SNMP/net.if.in.errors[{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN}'
+                  name: 'Interface [{#IFNAME}]: High inbound error rate'
+                  priority: WARNING
+                  description: 'Inbound errors stayed above {$IF.ERRORS.WARN} per second for 5 minutes.'
+            - uuid: 7e794d685a70485eb0968e4e6a0dd10b
+              name: 'Interface [{#IFNAME}]: Outbound errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.20.{#SNMPINDEX}'
+              key: 'net.if.out.errors[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: eps
+              description: 'MIB: IF-MIB::ifOutErrors, as errors per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 57afd86336984e38af2f25973d26955a
+                  expression: 'min(/Datacom DM3324F2 by SNMP/net.if.out.errors[{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN}'
+                  name: 'Interface [{#IFNAME}]: High outbound error rate'
+                  priority: WARNING
+                  description: 'Outbound errors stayed above {$IF.ERRORS.WARN} per second for 5 minutes.'
+            - uuid: 1f2b347c02544bfcae7a96689140f6af
+              name: 'Interface [{#IFNAME}]: Inbound discards'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.13.{#SNMPINDEX}'
+              key: 'net.if.in.discards[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: eps
+              description: 'MIB: IF-MIB::ifInDiscards, as discards per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 96ba304605c64acca84074d2dc211d21
+              name: 'Interface [{#IFNAME}]: Outbound discards'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.19.{#SNMPINDEX}'
+              key: 'net.if.out.discards[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: eps
+              description: 'MIB: IF-MIB::ifOutDiscards, as discards per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+          graph_prototypes:
+            - uuid: 4527ac45a0f641078e456a9e23a07999
+              name: 'Interface [{#IFNAME}]: Traffic'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'Datacom DM3324F2 by SNMP'
+                    key: 'net.if.in[{#SNMPINDEX}]'
+                - drawtype: BOLD_LINE
+                  color: F63100
+                  item:
+                    host: 'Datacom DM3324F2 by SNMP'
+                    key: 'net.if.out[{#SNMPINDEX}]'
+        - uuid: 7ba0dc7aeb78493196f34b1c47b20b90
+          name: 'Fan discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#FANINDEX},1.3.6.1.4.1.3709.3.5.201.1.1.5.1.2]'
+          key: sensor.fan.discovery
+          delay: 1h
+          description: |
+            DMswitch-MIB::switchIndivFanTable. The index is unit.fan.
+            On this chassis both fans report green(2). Only red(1) opens a problem.
+          item_prototypes:
+            - uuid: 49737c3511b44b5abf99d4a847374c78
+              name: 'Fan [{#SNMPINDEX}]: State'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.3709.3.5.201.1.1.5.1.3.{#SNMPINDEX}'
+              key: 'sensor.fan.state[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: DMswitch-MIB::swIndivFanStatus. 1 is red, 2 is green.'
+              valuemap:
+                name: 'Fan status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: fan
+              trigger_prototypes:
+                - uuid: 172d2541fa9742d8a04857d9ac61b825
+                  expression: 'last(/Datacom DM3324F2 by SNMP/sensor.fan.state[{#SNMPINDEX}])=1'
+                  name: 'Fan [{#SNMPINDEX}] is red'
+                  priority: HIGH
+                  description: 'The fan reports red.'
+        - uuid: 327146002bf94cd2815c3fec23022a29
+          name: 'Power supply discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#PSUINDEX},1.3.6.1.4.1.3709.3.5.201.1.1.4.1.2]'
+          key: sensor.psu.discovery
+          delay: 1h
+          description: |
+            DMswitch-MIB::switchIndivPowerTable. Index 1 is the internal supply and index 2 is the external supply.
+            On this chassis the internal supply is green and the external supply is not present. Only red(1) opens a problem.
+          item_prototypes:
+            - uuid: ed40b16b41b24f56a7cafa9b5cbe3b37
+              name: 'Power supply [{#SNMPINDEX}]: State'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.3709.3.5.201.1.1.4.1.3.{#SNMPINDEX}'
+              key: 'sensor.psu.state[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: DMswitch-MIB::swIndivPowerStatus. 1 is red, 2 is green, 3 is not present.'
+              valuemap:
+                name: 'Power supply status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - uuid: 6281bb18c20f44bca3a92e3dfcbe84aa
+                  expression: 'last(/Datacom DM3324F2 by SNMP/sensor.psu.state[{#SNMPINDEX}])=1'
+                  name: 'Power supply [{#SNMPINDEX}] is red'
+                  priority: HIGH
+                  description: 'The power supply reports red.'
+        - uuid: 36a8e9d1480b4742927d40922083e4e4
+          name: 'Alarm discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#ALARMINDEX},1.3.6.1.4.1.3709.3.5.201.1.1.6.1.2]'
+          key: sensor.alarm.discovery
+          delay: 1h
+          description: 'DMswitch-MIB::switchIndivAlarmTable. Three alarm inputs. deactivated(1) is normal. activated(2) opens a problem.'
+          item_prototypes:
+            - uuid: 93163ef3f547490e9f6fccf5572d9386
+              name: 'Alarm [{#SNMPINDEX}]: State'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.3709.3.5.201.1.1.6.1.3.{#SNMPINDEX}'
+              key: 'sensor.alarm.state[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: DMswitch-MIB::swIndivAlarmStatus. 1 is deactivated, 2 is activated.'
+              valuemap:
+                name: 'Alarm status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: health
+              trigger_prototypes:
+                - uuid: 38e13aaa48df4ef2a9c5d7bdff99654b
+                  expression: 'last(/Datacom DM3324F2 by SNMP/sensor.alarm.state[{#SNMPINDEX}])=2'
+                  name: 'Alarm [{#SNMPINDEX}] is activated'
+                  priority: WARNING
+                  description: 'The alarm input reports activated.'
+  graphs:
+    - uuid: cc2b5f87e327491a88108a52466f7b2f
+      name: 'CPU utilization'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      yaxismin: '0'
+      yaxismax: '100'
+      graph_items:
+        - sortorder: '0'
+          drawtype: GRADIENT_LINE
+          color: 1A7C11
+          item:
+            host: 'Datacom DM3324F2 by SNMP'
+            key: system.cpu.util
+    - uuid: af8a16bb63e8430dab9a284b2890ed17
+      name: 'Memory utilization'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      yaxismin: '0'
+      yaxismax: '100'
+      graph_items:
+        - sortorder: '0'
+          drawtype: GRADIENT_LINE
+          color: 2774A4
+          item:
+            host: 'Datacom DM3324F2 by SNMP'
+            key: vm.memory.util
+    - uuid: 30e5fa098b9b4c05aa96892df1237be2
+      name: 'Temperature'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      yaxismin: '0'
+      yaxismax: '100'
+      graph_items:
+        - sortorder: '0'
+          drawtype: GRADIENT_LINE
+          color: F63100
+          item:
+            host: 'Datacom DM3324F2 by SNMP'
+            key: sensor.temp.value

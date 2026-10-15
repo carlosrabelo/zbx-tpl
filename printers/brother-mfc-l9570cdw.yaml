@@ -1,0 +1,348 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 8003587ac30341048e9448afee76d37b
+      template: 'Brother MFC-L9570CDW'
+      name: 'Brother MFC-L9570CDW'
+      description: 'Color toner comes from the remaining-life fields in Brother brInfoMaintenance, in hundredths of a percent. The coarse gauge on that object can stay at 100% when a cartridge is empty or removed, so it is used only when the remaining-life field is absent. A color missing from the reading is stored as 0%. Belt and drum come from Printer-MIB.'
+      templates:
+        - name: 'Generic by SNMP'
+      groups:
+        - name: 'Templates/Network devices'
+      items:
+        - uuid: 8bb14cd905744cd883ebb5ecfbef8cc5
+          name: 'Toner levels'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.8.0
+          key: printer.maintenance.raw
+          delay: 1h
+          value_type: TEXT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var hex = String(value).replace(/[^0-9a-fA-F]/g, '');
+                  var remain = {111: 'black', 112: 'cyan', 113: 'magenta', 114: 'yellow'};
+                  var coarse = {129: 'black', 130: 'cyan', 131: 'magenta', 132: 'yellow'};
+                  var out = {};
+                  var seen = {};
+                  var b = [];
+                  var clean = [];
+                  var i;
+                  var id;
+                  var raw;
+                  var name;
+                  if (hex.length < 14 || hex.length % 2) return JSON.stringify(out);
+                  for (i = 0; i < hex.length; i += 2) b.push(parseInt(hex.substr(i, 2), 16));
+                  for (i = 0; i < b.length; i++) {
+                    if (i + 3 < b.length && b[i] === 255 && b[i + 1] === 255 && b[i + 2] === 255 && b[i + 3] === 255) break;
+                    if (i + 2 < b.length && b[i] === 255 && b[i + 1] === 255 && b[i + 2] === 255) {
+                      i += 2;
+                      continue;
+                    }
+                    clean.push(b[i]);
+                  }
+                  for (i = 0; i + 6 < clean.length; i++) {
+                    if (clean[i + 1] !== 1 || clean[i + 2] !== 4) continue;
+                    id = clean[i];
+                    raw = (clean[i + 3] * 16777216) + (clean[i + 4] * 65536) + (clean[i + 5] * 256) + clean[i + 6];
+                    name = remain[id];
+                    if (name) {
+                      out[name] = Math.max(0, Math.min(100, Math.round(raw / 100)));
+                      seen[name] = 1;
+                    } else if (coarse[id] && !seen[coarse[id]] && raw <= 100) {
+                      out[coarse[id]] = raw;
+                      seen[coarse[id]] = 1;
+                    }
+                    i += 6;
+                  }
+                  return JSON.stringify(out);
+          tags:
+            - tag: component
+              value: health
+            - tag: resource
+              value: toner
+        - uuid: c8e7d023f55a447c84ff7eb0f6fe3c53
+          name: 'Toner level [%] – Black'
+          type: DEPENDENT
+          key: 'printer.toner.level.pct[black]'
+          delay: '0'
+          value_type: UNSIGNED
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.black'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: printer.maintenance.raw
+          tags:
+            - tag: component
+              value: health
+            - tag: resource
+              value: toner
+          triggers:
+            - uuid: ee4ae506f7554952971f1e60c208b072
+              expression: 'last(/Brother MFC-L9570CDW/printer.toner.level.pct[black])<10'
+              name: 'Toner low – Black < 10%'
+              priority: WARNING
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+            - uuid: 0e03aeec695a4834bbe312d0fdb05678
+              expression: 'last(/Brother MFC-L9570CDW/printer.toner.level.pct[black])<5'
+              name: 'Toner very low – Black < 5%'
+              priority: HIGH
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+        - uuid: 64ee91a462c8456ab67593d480b18126
+          name: 'Toner level [%] – Cyan'
+          type: DEPENDENT
+          key: 'printer.toner.level.pct[cyan]'
+          delay: '0'
+          value_type: UNSIGNED
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.cyan'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: printer.maintenance.raw
+          tags:
+            - tag: component
+              value: health
+            - tag: resource
+              value: toner
+          triggers:
+            - uuid: dfb6ed2979c14fb19e38023ffe815d4c
+              expression: 'last(/Brother MFC-L9570CDW/printer.toner.level.pct[cyan])<10'
+              name: 'Toner low – Cyan < 10%'
+              priority: WARNING
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+            - uuid: 697e907f10b2452890b7a6578abe1560
+              expression: 'last(/Brother MFC-L9570CDW/printer.toner.level.pct[cyan])<5'
+              name: 'Toner very low – Cyan < 5%'
+              priority: HIGH
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+        - uuid: 526a56f4bce842f5971e66fa20c247b8
+          name: 'Toner level [%] – Magenta'
+          type: DEPENDENT
+          key: 'printer.toner.level.pct[magenta]'
+          delay: '0'
+          value_type: UNSIGNED
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.magenta'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: printer.maintenance.raw
+          tags:
+            - tag: component
+              value: health
+            - tag: resource
+              value: toner
+          triggers:
+            - uuid: 650e199e47f94d6ba99cc480313872d6
+              expression: 'last(/Brother MFC-L9570CDW/printer.toner.level.pct[magenta])<10'
+              name: 'Toner low – Magenta < 10%'
+              priority: WARNING
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+            - uuid: 06f86684fb4d4e879a2caf0dc7bb7b69
+              expression: 'last(/Brother MFC-L9570CDW/printer.toner.level.pct[magenta])<5'
+              name: 'Toner very low – Magenta < 5%'
+              priority: HIGH
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+        - uuid: 71d1e9daae02498ead492678122a1e26
+          name: 'Toner level [%] – Yellow'
+          type: DEPENDENT
+          key: 'printer.toner.level.pct[yellow]'
+          delay: '0'
+          value_type: UNSIGNED
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.yellow'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          master_item:
+            key: printer.maintenance.raw
+          tags:
+            - tag: component
+              value: health
+            - tag: resource
+              value: toner
+          triggers:
+            - uuid: 1106ce305f034349821a744d7b5c760a
+              expression: 'last(/Brother MFC-L9570CDW/printer.toner.level.pct[yellow])<10'
+              name: 'Toner low – Yellow < 10%'
+              priority: WARNING
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+            - uuid: be7da13e468444419adcf211c68f0de6
+              expression: 'last(/Brother MFC-L9570CDW/printer.toner.level.pct[yellow])<5'
+              name: 'Toner very low – Yellow < 5%'
+              priority: HIGH
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: toner
+      discovery_rules:
+        - uuid: 26f33002a94d4da1924f6ab278c79956
+          name: 'Printer unit discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SUP_DESC},1.3.6.1.2.1.43.11.1.1.6]'
+          key: prtMarkerSuppliesUnit
+          delay: 1h
+          filter:
+            conditions:
+              - macro: '{#SUP_DESC}'
+                value: '.*([Bb]elt|[Dd]rum).*'
+                operator: MATCHES_REGEX
+          item_prototypes:
+            - uuid: 69267e2f19a24b26aee362931af92374
+              name: 'Unit level [%] – [{#SUP_DESC}]'
+              type: CALCULATED
+              key: 'printer.unit.level.pct[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              units: '%'
+              params: 'last(//printer.unit.level.raw[{#SNMPINDEX}])+(last(//printer.unit.max.raw[{#SNMPINDEX}])/1000000)'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'var n=Number(value);if(!isFinite(n)||n<0)return 0;var level=Math.floor(n+1e-9);var max=Math.round((n-level)*1000000);if(max<=0)return level<=100?level:0;var pct=Math.round(100*level/max);if(pct<0)return 0;if(pct>100)return 100;return pct;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: unit
+              trigger_prototypes:
+                - uuid: 7f6c3d87e8dc49488bb2852a705b38df
+                  expression: 'last(/Brother MFC-L9570CDW/printer.unit.level.pct[{#SNMPINDEX}])<10'
+                  name: 'Unit low – [{#SUP_DESC}] < 10%'
+                  priority: WARNING
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: resource
+                      value: unit
+                - uuid: 0c1a5849036b4e8ca4053c0520d6e4ce
+                  expression: 'last(/Brother MFC-L9570CDW/printer.unit.level.pct[{#SNMPINDEX}])<5'
+                  name: 'Unit very low – [{#SUP_DESC}] < 5%'
+                  priority: HIGH
+                  description: 'A Printer-MIB level of -1, -2, or -3 is stored as 0%. That covers a missing unit and an unknown level, which used to keep the previous percentage.'
+                  tags:
+                    - tag: component
+                      value: health
+                    - tag: resource
+                      value: unit
+            - uuid: 8d3500ab67054db591a8f4b8cadb5c8e
+              name: 'Unit level (raw) – [{#SUP_DESC}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.9.{#SNMPINDEX}'
+              key: 'printer.unit.level.raw[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'var v=parseInt(value,10);if(isNaN(v))return 0;if(v>2147483647)v=v-4294967296;if(v<0)return 0;return v;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: unit
+            - uuid: 95b90ae4672b429bbac42084e0f037f3
+              name: 'Unit max capacity (raw) – [{#SUP_DESC}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.8.{#SNMPINDEX}'
+              key: 'printer.unit.max.raw[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'var v=parseInt(value,10);if(isNaN(v))return 0;if(v>2147483647)v=v-4294967296;if(v<=0)return 0;return v;'
+              tags:
+                - tag: component
+                  value: health
+                - tag: resource
+                  value: unit
+          graph_prototypes:
+            - uuid: 9ee30809b8654735a541a854a58d37a8
+              name: 'Unit level [%] – [{#SUP_DESC}]'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              yaxismin: '0'
+              yaxismax: '100'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 2774A6
+                  item:
+                    host: 'Brother MFC-L9570CDW'
+                    key: 'printer.unit.level.pct[{#SNMPINDEX}]'
+  graphs:
+    - uuid: 22f66e32eb614f8cbf15e47a38537808
+      name: 'Toner level [%]'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      yaxismin: '0'
+      yaxismax: '100'
+      graph_items:
+        - sortorder: '0'
+          drawtype: GRADIENT_LINE
+          color: '1A1A1A'
+          item:
+            host: 'Brother MFC-L9570CDW'
+            key: 'printer.toner.level.pct[black]'
+        - sortorder: '1'
+          drawtype: GRADIENT_LINE
+          color: '00AEEF'
+          item:
+            host: 'Brother MFC-L9570CDW'
+            key: 'printer.toner.level.pct[cyan]'
+        - sortorder: '2'
+          drawtype: GRADIENT_LINE
+          color: 'D1006C'
+          item:
+            host: 'Brother MFC-L9570CDW'
+            key: 'printer.toner.level.pct[magenta]'
+        - sortorder: '3'
+          drawtype: GRADIENT_LINE
+          color: 'F5C400'
+          item:
+            host: 'Brother MFC-L9570CDW'
+            key: 'printer.toner.level.pct[yellow]'

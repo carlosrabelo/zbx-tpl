@@ -1,0 +1,897 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 103d5f194751408687afe378f798808f
+      template: 'Datacom DM1200E by SNMP'
+      name: 'Datacom DM1200E by SNMP'
+      description: |
+        Datacom DM1200E 24GP+4GX (firmware 4.0.0.73, Broadcom FASTPATH, sysObjectID 1.3.6.1.4.1.4413).
+        Covers the same operational checks as Cisco IOS by SNMP: reachability, identity, CPU, memory, temperature, fans, power supplies, and ethernet interfaces.
+        PoE budget and per-port detection come from the Power Ethernet MIB. CPU and memory come from FASTPATH-SWITCHING-MIB; environment comes from FASTPATH-BOXSERVICES-PRIVATE-MIB.
+        Do not also link Generic by SNMP. This template already collects ICMP, SNMP availability, and interfaces.
+      groups:
+        - name: 'Templates/Network devices'
+      macros:
+        - macro: '{$CPU.UTIL.CRIT}'
+          value: '90'
+          description: 'CPU utilization threshold, percent. Uses the 60-second FASTPATH average.'
+        - macro: '{$MEMORY.UTIL.MAX}'
+          value: '90'
+          description: 'Memory utilization threshold, percent of the FASTPATH available pool.'
+        - macro: '{$TEMP.MAX}'
+          value: '75'
+          description: 'Temperature threshold in Celsius. This chassis idles around 32–36.'
+        - macro: '{$IF.UTIL.MAX}'
+          value: '90'
+          description: 'Interface utilization threshold, percent of ifHighSpeed.'
+        - macro: '{$IF.ERRORS.WARN}'
+          value: '2'
+          description: 'Interface error rate threshold, errors per second, sustained for 5 minutes.'
+        - macro: '{$POE.UTIL.MAX}'
+          value: '90'
+          description: 'PoE consumption threshold, percent of the chassis power budget.'
+        - macro: '{$ICMP.LOSS.WARN}'
+          value: '20'
+          description: 'ICMP loss threshold, percent, sustained for 5 minutes.'
+      valuemaps:
+        - uuid: 2963f1aaf90c4d3cb53dd334bd3897d9
+          name: 'SNMP agent availability'
+          mappings:
+            - value: '0'
+              newvalue: 'not available'
+            - value: '1'
+              newvalue: available
+            - value: '2'
+              newvalue: unknown
+        - uuid: 9eb352c0de3f453aa2d63304060a8976
+          name: 'Interface admin status'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: testing
+        - uuid: 9e76dd930611448e9a07816df0c7c627
+          name: 'Interface operational status'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: testing
+            - value: '4'
+              newvalue: unknown
+            - value: '5'
+              newvalue: dormant
+            - value: '6'
+              newvalue: notPresent
+            - value: '7'
+              newvalue: lowerLayerDown
+        - uuid: 83745fe572d74a218adc14ef5615f297
+          name: 'Service state'
+          mappings:
+            - value: '1'
+              newvalue: not present
+            - value: '2'
+              newvalue: operational
+            - value: '3'
+              newvalue: failed
+        - uuid: de881c87e87e4c9ebd0b25a2c3f23f80
+          name: 'Temperature state'
+          mappings:
+            - value: '1'
+              newvalue: normal
+            - value: '2'
+              newvalue: warning
+            - value: '3'
+              newvalue: critical
+            - value: '4'
+              newvalue: shutdown
+            - value: '5'
+              newvalue: not present
+            - value: '6'
+              newvalue: not operational
+        - uuid: da0196867bd0465fbd4cbeab3deaff4e
+          name: 'PoE operational status'
+          mappings:
+            - value: '1'
+              newvalue: on
+            - value: '2'
+              newvalue: off
+            - value: '3'
+              newvalue: faulty
+        - uuid: 1752a913c8114df0804af1656ea63d44
+          name: 'PoE detection status'
+          mappings:
+            - value: '1'
+              newvalue: disabled
+            - value: '2'
+              newvalue: searching
+            - value: '3'
+              newvalue: delivering power
+            - value: '4'
+              newvalue: fault
+            - value: '5'
+              newvalue: test
+            - value: '6'
+              newvalue: other fault
+      items:
+        - uuid: d2c93a663723414e919e3c358eeb43e0
+          name: 'ICMP ping'
+          type: SIMPLE
+          key: icmpping
+          value_type: UNSIGNED
+          description: '1 when the switch answers ICMP echo, 0 otherwise.'
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 249afcef607f4b879a4a2058a03a7075
+              expression: 'max(/Datacom DM1200E by SNMP/icmpping,#3)=0'
+              name: 'Unavailable by ICMP ping'
+              priority: HIGH
+              description: 'The switch missed three ICMP echo checks in a row.'
+        - uuid: ec4a49bf496d4e44a9655a642de14d94
+          name: 'ICMP loss'
+          type: SIMPLE
+          key: icmppingloss
+          value_type: FLOAT
+          units: '%'
+          description: 'Percentage of lost ICMP echo replies.'
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: df2c7506ef704003b835b048a9163cc0
+              expression: 'min(/Datacom DM1200E by SNMP/icmppingloss,5m)>{$ICMP.LOSS.WARN}'
+              name: 'High ICMP ping loss'
+              priority: WARNING
+              description: 'ICMP loss stayed above {$ICMP.LOSS.WARN}% for 5 minutes.'
+              dependencies:
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Datacom DM1200E by SNMP/icmpping,#3)=0'
+        - uuid: 936016eafefd446db4d63336004ed67b
+          name: 'ICMP response time'
+          type: SIMPLE
+          key: icmppingsec
+          value_type: FLOAT
+          units: s
+          description: 'Round-trip time of an ICMP echo.'
+          tags:
+            - tag: component
+              value: health
+        - uuid: 085027cef92945908989fbd1aa0ae71a
+          name: 'SNMP agent availability'
+          type: INTERNAL
+          key: 'zabbix[host,snmp,available]'
+          value_type: UNSIGNED
+          description: 'Availability of SNMP checks on the host. 0 is not available, 1 is available, 2 is unknown.'
+          valuemap:
+            name: 'SNMP agent availability'
+          tags:
+            - tag: component
+              value: health
+          triggers:
+            - uuid: ad76a3bff9ba42f19d65427b666923a4
+              expression: 'last(/Datacom DM1200E by SNMP/zabbix[host,snmp,available])=0'
+              name: 'No SNMP data collection'
+              priority: HIGH
+              description: 'SNMP checks on this host are failing.'
+              dependencies:
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Datacom DM1200E by SNMP/icmpping,#3)=0'
+        - uuid: c6661589049a4027aaccc5f5bded6652
+          name: 'System name'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.5.0
+          key: system.name
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: SNMPv2-MIB::sysName.0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: fa4fda0f73b04b2bb5e6e3822af6221d
+          name: 'System description'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.1.0
+          key: system.descr
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: SNMPv2-MIB::sysDescr.0. Includes the model and the firmware version.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: bf61626c24e4425bb98fae826a5e9692
+          name: 'System contact'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.4.0
+          key: system.contact
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: SNMPv2-MIB::sysContact.0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 33909e0cdf4349d59553d5a80acb9085
+          name: 'System location'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.6.0
+          key: system.location
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: SNMPv2-MIB::sysLocation.0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: fffdf1b0b8644015924109359b8f871d
+          name: 'Uptime'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.3.0
+          key: system.uptime
+          value_type: UNSIGNED
+          units: uptime
+          description: 'MIB: SNMPv2-MIB::sysUpTime.0. Time since the SNMP agent last reinitialized.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 6b1bb4facf1441858940500345b6d4e2
+              expression: 'last(/Datacom DM1200E by SNMP/system.uptime)<600'
+              name: 'Switch has been restarted'
+              priority: INFO
+              description: 'Uptime is under 10 minutes.'
+        - uuid: fba88af14aa94c99b87ba5e4a1d32877
+          name: 'Hardware serial number'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.47.1.1.1.1.11.2
+          key: system.hw.serialnumber
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: ENTITY-MIB::entPhysicalSerialNum.2, the chassis entry.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 4035bf308aed43d783caee63eb2cb5d8
+          name: 'Hardware model'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.47.1.1.1.1.2.2
+          key: system.hw.model
+          delay: 1h
+          value_type: CHAR
+          description: 'MIB: ENTITY-MIB::entPhysicalDescr.2, the chassis entry.'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: f408e16673534dfb9c9ace2359a5da28
+          name: 'CPU utilization'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.4413.1.1.1.1.4.9.0
+          key: system.cpu.util
+          value_type: FLOAT
+          units: '%'
+          description: 'MIB: FASTPATH-SWITCHING-MIB::agentSwitchCpuProcessTotalUtilization.0. The 60-second percentage is parsed from the agent string.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var m = String(value).match(/60 Secs?\s*\(\s*([0-9.]+)\s*%\)/);
+                  if (!m) return null;
+                  return Math.round(parseFloat(m[1]) * 10) / 10;
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: 1885c768c58c40fdb71246e9ae3c9289
+              expression: 'min(/Datacom DM1200E by SNMP/system.cpu.util,5m)>{$CPU.UTIL.CRIT}'
+              name: 'High CPU utilization'
+              priority: WARNING
+              description: 'CPU utilization stayed above {$CPU.UTIL.CRIT}% for 5 minutes.'
+        - uuid: bf2f779cf5e146bea617baeeae02dea5
+          name: 'Memory free'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.4413.1.1.1.1.4.1.0
+          key: vm.memory.free
+          value_type: UNSIGNED
+          units: KB
+          description: 'MIB: FASTPATH-SWITCHING-MIB::agentSwitchCpuProcessMemFree.0. On firmware 4.0.0.73 the counter scale matches kilobytes.'
+          tags:
+            - tag: component
+              value: memory
+        - uuid: baae903fd78b472ba5b7c8c7243a8885
+          name: 'Memory available'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.4413.1.1.1.1.4.2.0
+          key: vm.memory.total
+          value_type: UNSIGNED
+          units: KB
+          description: 'MIB: FASTPATH-SWITCHING-MIB::agentSwitchCpuProcessMemAvailable.0. Pool size used as the utilization denominator.'
+          tags:
+            - tag: component
+              value: memory
+        - uuid: 1e46f5f646b14f1fafe14e9b420ddb9b
+          name: 'Memory utilization'
+          type: CALCULATED
+          key: vm.memory.util
+          value_type: FLOAT
+          units: '%'
+          params: '100*(last(//vm.memory.total)-last(//vm.memory.free))/(last(//vm.memory.total)+0.000001)'
+          description: 'Used share of the FASTPATH available memory pool.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var n = parseFloat(value);
+                  if (!isFinite(n) || n < 0) return 0;
+                  if (n > 100) return 100;
+                  return Math.round(n * 10) / 10;
+          tags:
+            - tag: component
+              value: memory
+          triggers:
+            - uuid: af70f3bb695541e3bf83dcd5e539566a
+              expression: 'min(/Datacom DM1200E by SNMP/vm.memory.util,5m)>{$MEMORY.UTIL.MAX}'
+              name: 'High memory utilization'
+              priority: WARNING
+              description: 'Memory utilization stayed above {$MEMORY.UTIL.MAX}% for 5 minutes.'
+        - uuid: 58c870303b0b4801ad7813e174f0e8df
+          name: 'PoE power budget'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.105.1.3.1.1.2.1
+          key: poe.power.budget
+          value_type: FLOAT
+          units: W
+          description: 'MIB: POWER-ETHERNET-MIB::pethMainPsePower.1, converted from milliwatts.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.001'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: power
+        - uuid: 7473d6b7211f4f39ad014dc512d45cae
+          name: 'PoE power consumption'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.105.1.3.1.1.4.1
+          key: poe.power.consumption
+          value_type: FLOAT
+          units: W
+          description: 'MIB: POWER-ETHERNET-MIB::pethMainPseConsumptionPower.1, converted from milliwatts.'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.001'
+          tags:
+            - tag: component
+              value: power
+        - uuid: 942bba2432a842b684e33643864ec2cb
+          name: 'PoE power utilization'
+          type: CALCULATED
+          key: poe.power.util
+          value_type: FLOAT
+          units: '%'
+          params: '100*last(//poe.power.consumption)/(last(//poe.power.budget)+0.000001)'
+          description: 'Chassis PoE consumption as a percentage of the power budget.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var n = parseFloat(value);
+                  if (!isFinite(n) || n < 0) return 0;
+                  return Math.round(n * 10) / 10;
+          tags:
+            - tag: component
+              value: power
+          triggers:
+            - uuid: e41b9f21205d4c258177d48b705ea024
+              expression: 'min(/Datacom DM1200E by SNMP/poe.power.util,5m)>{$POE.UTIL.MAX}'
+              name: 'High PoE power utilization'
+              priority: WARNING
+              description: 'PoE consumption stayed above {$POE.UTIL.MAX}% of the budget for 5 minutes.'
+        - uuid: 5dd85ff2d03d49edb20bfc8a31a9d8c5
+          name: 'PoE operational status'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.105.1.3.1.1.3.1
+          key: poe.status
+          value_type: UNSIGNED
+          description: 'MIB: POWER-ETHERNET-MIB::pethMainPseOperStatus.1. 1 is on, 2 is off, 3 is faulty.'
+          valuemap:
+            name: 'PoE operational status'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: power
+          triggers:
+            - uuid: 2f29111fad344f618262d915c7db8b98
+              expression: 'last(/Datacom DM1200E by SNMP/poe.status)<>1'
+              name: 'PoE power supply is not on'
+              priority: HIGH
+              description: 'The chassis PoE controller reports off or faulty.'
+      discovery_rules:
+        - uuid: 890e576ec32e4922bba5d0cbf9d12326
+          name: 'Network interface discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFDESCR},1.3.6.1.2.1.2.2.1.2,{#IFTYPE},1.3.6.1.2.1.2.2.1.3,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18]'
+          key: net.if.discovery
+          delay: 1h
+          description: 'IF-MIB interfaces of type ethernetCsmacd(6). On the DM1200E that is ports 1/0/1–1/0/28, including the four SFP slots. The CPU interface, link aggregates, and the VLAN interface are left out.'
+          filter:
+            conditions:
+              - macro: '{#IFTYPE}'
+                value: '^6$'
+                operator: MATCHES_REGEX
+          item_prototypes:
+            - uuid: 1cdb6db3df514f7fa9f75db1c6840259
+              name: 'Interface [{#IFNAME}]: Admin status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.7.{#SNMPINDEX}'
+              key: 'net.if.admin[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: IF-MIB::ifAdminStatus. {#IFDESCR} {#IFALIAS}'
+              valuemap:
+                name: 'Interface admin status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: c7088f5c91664c788267c67862d92f06
+              name: 'Interface [{#IFNAME}]: Operational status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
+              key: 'net.if.status[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: IF-MIB::ifOperStatus. {#IFDESCR} {#IFALIAS}'
+              valuemap:
+                name: 'Interface operational status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 19265f59f84540a99af5a8ce0abc1cd6
+                  expression: 'last(/Datacom DM1200E by SNMP/net.if.status[{#SNMPINDEX}])=2 and last(/Datacom DM1200E by SNMP/net.if.admin[{#SNMPINDEX}])=1'
+                  name: 'Interface [{#IFNAME}]: Link down'
+                  priority: AVERAGE
+                  status: DISABLED
+                  description: '{#IFDESCR} is administratively up and operationally down. Disabled until link-state problems are wanted; status and traffic are still collected.'
+                  tags:
+                    - tag: component
+                      value: network
+                    - tag: interface
+                      value: '{#IFNAME}'
+            - uuid: 047f0488061c4ef9b4d007ebabe5a3bb
+              name: 'Interface [{#IFNAME}]: Bits received'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.6.{#SNMPINDEX}'
+              key: 'net.if.in[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: bps
+              description: 'MIB: IF-MIB::ifHCInOctets, converted to bits per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: b528e7d4ec0245468467d7fe1b2802ee
+              name: 'Interface [{#IFNAME}]: Bits sent'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.10.{#SNMPINDEX}'
+              key: 'net.if.out[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: bps
+              description: 'MIB: IF-MIB::ifHCOutOctets, converted to bits per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 4c460b43403d4ef3b09a0d4582b39a77
+              name: 'Interface [{#IFNAME}]: Inbound utilization'
+              type: CALCULATED
+              key: 'net.if.in.util[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//net.if.in[{#SNMPINDEX}])/(last(//net.if.speed[{#SNMPINDEX}])*1000000+0.000001)'
+              description: 'Inbound bits per second as a percentage of ifHighSpeed. A down link with speed 0 stores 0.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var n = parseFloat(value);
+                      if (!isFinite(n) || n < 0 || n > 1000) return 0;
+                      return Math.round(n * 10) / 10;
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 1dd9062ad92d4958a64dad91f788b06a
+                  expression: 'min(/Datacom DM1200E by SNMP/net.if.in.util[{#SNMPINDEX}],5m)>{$IF.UTIL.MAX}'
+                  name: 'Interface [{#IFNAME}]: High inbound utilization'
+                  priority: WARNING
+                  description: 'Inbound utilization stayed above {$IF.UTIL.MAX}% for 5 minutes.'
+            - uuid: 0c8cd30fe3784c178aad3d7fe6911004
+              name: 'Interface [{#IFNAME}]: Outbound utilization'
+              type: CALCULATED
+              key: 'net.if.out.util[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//net.if.out[{#SNMPINDEX}])/(last(//net.if.speed[{#SNMPINDEX}])*1000000+0.000001)'
+              description: 'Outbound bits per second as a percentage of ifHighSpeed. A down link with speed 0 stores 0.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var n = parseFloat(value);
+                      if (!isFinite(n) || n < 0 || n > 1000) return 0;
+                      return Math.round(n * 10) / 10;
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 2619dc33fb9d42c6999290a03d79a140
+                  expression: 'min(/Datacom DM1200E by SNMP/net.if.out.util[{#SNMPINDEX}],5m)>{$IF.UTIL.MAX}'
+                  name: 'Interface [{#IFNAME}]: High outbound utilization'
+                  priority: WARNING
+                  description: 'Outbound utilization stayed above {$IF.UTIL.MAX}% for 5 minutes.'
+            - uuid: abd7e5ab8f91400a87ea05cdb6a219c5
+              name: 'Interface [{#IFNAME}]: Speed'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.15.{#SNMPINDEX}'
+              key: 'net.if.speed[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              units: Mbps
+              description: 'MIB: IF-MIB::ifHighSpeed. Current bandwidth in megabits per second. Down links report 0.'
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 3e3045d2e22a4d89ad5eedc01eb94482
+              name: 'Interface [{#IFNAME}]: Inbound errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.14.{#SNMPINDEX}'
+              key: 'net.if.in.errors[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: eps
+              description: 'MIB: IF-MIB::ifInErrors, as errors per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 2d764294a791451e847763e109017061
+                  expression: 'min(/Datacom DM1200E by SNMP/net.if.in.errors[{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN}'
+                  name: 'Interface [{#IFNAME}]: High inbound error rate'
+                  priority: WARNING
+                  description: 'Inbound errors stayed above {$IF.ERRORS.WARN} per second for 5 minutes.'
+            - uuid: 032b786f56704573aaed2fbfe029d13c
+              name: 'Interface [{#IFNAME}]: Outbound errors'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.20.{#SNMPINDEX}'
+              key: 'net.if.out.errors[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: eps
+              description: 'MIB: IF-MIB::ifOutErrors, as errors per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: bcaf4879e62b47c4ac385bab51310201
+                  expression: 'min(/Datacom DM1200E by SNMP/net.if.out.errors[{#SNMPINDEX}],5m)>{$IF.ERRORS.WARN}'
+                  name: 'Interface [{#IFNAME}]: High outbound error rate'
+                  priority: WARNING
+                  description: 'Outbound errors stayed above {$IF.ERRORS.WARN} per second for 5 minutes.'
+            - uuid: 5c8b4e8146ad4e18a602d69fee9118da
+              name: 'Interface [{#IFNAME}]: Inbound discards'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.13.{#SNMPINDEX}'
+              key: 'net.if.in.discards[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: eps
+              description: 'MIB: IF-MIB::ifInDiscards, as discards per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+            - uuid: 91ae469c4c724f90beb02e84e5958c2a
+              name: 'Interface [{#IFNAME}]: Outbound discards'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.19.{#SNMPINDEX}'
+              key: 'net.if.out.discards[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: eps
+              description: 'MIB: IF-MIB::ifOutDiscards, as discards per second.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+          graph_prototypes:
+            - uuid: af362697e99d4da2a1a82d0b0bc8ce47
+              name: 'Interface [{#IFNAME}]: Traffic'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 1A7C11
+                  item:
+                    host: 'Datacom DM1200E by SNMP'
+                    key: 'net.if.in[{#SNMPINDEX}]'
+                - drawtype: BOLD_LINE
+                  color: F63100
+                  item:
+                    host: 'Datacom DM1200E by SNMP'
+                    key: 'net.if.out[{#SNMPINDEX}]'
+        - uuid: a9b16455922e47b2a3cc3dd223e8bf66
+          name: 'Temperature sensor discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#TEMP},1.3.6.1.4.1.4413.1.1.43.1.8.1.5]'
+          key: sensor.temp.discovery
+          delay: 1h
+          description: |
+            FASTPATH boxServices temperature table. On firmware 4.0.0.73 the index is unit.sensor.
+            Sensor 1.0 is the CPU temperature. Sensor 1.1 is the second chassis sensor.
+          item_prototypes:
+            - uuid: 7b83a49b9e864779a1ecb9a810774c2a
+              name: 'Temperature [{#SNMPINDEX}]'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.4413.1.1.43.1.8.1.5.{#SNMPINDEX}'
+              key: 'sensor.temp.value[{#SNMPINDEX}]'
+              value_type: FLOAT
+              units: '°C'
+              description: 'MIB: FASTPATH-BOXSERVICES-PRIVATE-MIB temperature column. Index {#SNMPINDEX}.'
+              tags:
+                - tag: component
+                  value: temperature
+              trigger_prototypes:
+                - uuid: b27da4e99691412bb8150e1493ed4ce3
+                  expression: 'min(/Datacom DM1200E by SNMP/sensor.temp.value[{#SNMPINDEX}],5m)>{$TEMP.MAX}'
+                  name: 'Temperature [{#SNMPINDEX}] is above {$TEMP.MAX}°C'
+                  priority: HIGH
+                  description: 'The sensor stayed above {$TEMP.MAX}°C for 5 minutes.'
+            - uuid: 1923744690b64645ad03b6f7fb0ead6c
+              name: 'Temperature [{#SNMPINDEX}]: State'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.4413.1.1.43.1.8.1.4.{#SNMPINDEX}'
+              key: 'sensor.temp.state[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'Sensor state. 1 normal, 2 warning, 3 critical, 4 shutdown, 5 not present, 6 not operational.'
+              valuemap:
+                name: 'Temperature state'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: temperature
+              trigger_prototypes:
+                - uuid: 37bb89ef665143da82002ad4e7b81a32
+                  expression: 'last(/Datacom DM1200E by SNMP/sensor.temp.state[{#SNMPINDEX}])>1 and last(/Datacom DM1200E by SNMP/sensor.temp.state[{#SNMPINDEX}])<>5'
+                  name: 'Temperature [{#SNMPINDEX}]: Sensor is not normal'
+                  priority: HIGH
+                  description: 'The sensor reports warning, critical, shutdown, or not operational.'
+          graph_prototypes:
+            - uuid: c297e12b58c9490296babe228e4701c6
+              name: 'Temperature [{#SNMPINDEX}]'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              yaxismin: '0'
+              yaxismax: '100'
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: 'Datacom DM1200E by SNMP'
+                    key: 'sensor.temp.value[{#SNMPINDEX}]'
+        - uuid: e2b6648ea7b3415483aa5b64ba615d41
+          name: 'Fan discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#FANINDEX},1.3.6.1.4.1.4413.1.1.43.1.6.1.1]'
+          key: sensor.fan.discovery
+          delay: 1h
+          description: |
+            FASTPATH boxServices fan table. Index is unit.fan.
+            On this chassis, fans 1.0–1.2 report operational and fan 1.3 reports not present. Only failed(3) opens a problem.
+          item_prototypes:
+            - uuid: 65855a2075c044ef9ec645c507e9f768
+              name: 'Fan [{#SNMPINDEX}]: State'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.4413.1.1.43.1.6.1.3.{#SNMPINDEX}'
+              key: 'sensor.fan.state[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: boxServicesFanItemState. 1 not present, 2 operational, 3 failed.'
+              valuemap:
+                name: 'Service state'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: fan
+              trigger_prototypes:
+                - uuid: b67370c8ef37431abd76715c7d447797
+                  expression: 'last(/Datacom DM1200E by SNMP/sensor.fan.state[{#SNMPINDEX}])=3'
+                  name: 'Fan [{#SNMPINDEX}] failed'
+                  priority: HIGH
+                  description: 'The fan reports failed.'
+        - uuid: 585a6405b2644c239dfade9d5fd1b8e7
+          name: 'Power supply discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#PSUINDEX},1.3.6.1.4.1.4413.1.1.43.1.7.1.1]'
+          key: sensor.psu.discovery
+          delay: 1h
+          description: |
+            FASTPATH boxServices power-supply table. Index is unit.psu.
+            On this standalone chassis one supply reports operational and the second reports not present. Only failed(3) opens a problem.
+          item_prototypes:
+            - uuid: 82f85f98be944ffbbcb7696ccc440607
+              name: 'Power supply [{#SNMPINDEX}]: State'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.4413.1.1.43.1.7.1.3.{#SNMPINDEX}'
+              key: 'sensor.psu.state[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: 'MIB: boxServicesPowSupplyItemState. 1 not present, 2 operational, 3 failed.'
+              valuemap:
+                name: 'Service state'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - uuid: 94dfbea324a24801bfe914a549b09e02
+                  expression: 'last(/Datacom DM1200E by SNMP/sensor.psu.state[{#SNMPINDEX}])=3'
+                  name: 'Power supply [{#SNMPINDEX}] failed'
+                  priority: HIGH
+                  description: 'The power supply reports failed.'
+        - uuid: 66a753701200474486e983edc05da594
+          name: 'PoE port discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#POESTATUS},1.3.6.1.2.1.105.1.1.1.6]'
+          key: poe.port.discovery
+          delay: 1h
+          description: 'POWER-ETHERNET-MIB::pethPsePortDetectionStatus. The index is group.port. The 24 copper ports are 1.1–1.24. Searching is normal for an idle port; only fault states open a problem.'
+          item_prototypes:
+            - uuid: 920c4af3cbb54812b986bf19a4bbeea3
+              name: 'PoE port [{#SNMPINDEX}]: Detection status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.105.1.1.1.6.{#SNMPINDEX}'
+              key: 'poe.port.status[{#SNMPINDEX}]'
+              value_type: UNSIGNED
+              description: '1 disabled, 2 searching, 3 delivering power, 4 fault, 5 test, 6 other fault.'
+              valuemap:
+                name: 'PoE detection status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: component
+                  value: power
+                - tag: interface
+                  value: '{#SNMPINDEX}'
+              trigger_prototypes:
+                - uuid: fbd1c0a04a4a43b0ab189041eae0e840
+                  expression: 'last(/Datacom DM1200E by SNMP/poe.port.status[{#SNMPINDEX}])=4 or last(/Datacom DM1200E by SNMP/poe.port.status[{#SNMPINDEX}])=6'
+                  name: 'PoE port [{#SNMPINDEX}]: Fault'
+                  priority: WARNING
+                  description: 'The port reports a PoE fault or other fault.'
+  graphs:
+    - uuid: c3997069812740848151d899af969d83
+      name: 'CPU utilization'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      yaxismin: '0'
+      yaxismax: '100'
+      graph_items:
+        - sortorder: '0'
+          drawtype: GRADIENT_LINE
+          color: 1A7C11
+          item:
+            host: 'Datacom DM1200E by SNMP'
+            key: system.cpu.util
+    - uuid: 45f9445549d24340a0915d1de72e098e
+      name: 'Memory utilization'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      yaxismin: '0'
+      yaxismax: '100'
+      graph_items:
+        - sortorder: '0'
+          drawtype: GRADIENT_LINE
+          color: 2774A4
+          item:
+            host: 'Datacom DM1200E by SNMP'
+            key: vm.memory.util
+    - uuid: 39c0b8bd3ca7455c81d2d35471ebecf7
+      name: 'PoE power'
+      graph_items:
+        - sortorder: '0'
+          drawtype: GRADIENT_LINE
+          color: F63100
+          item:
+            host: 'Datacom DM1200E by SNMP'
+            key: poe.power.consumption
+        - sortorder: '1'
+          drawtype: BOLD_LINE
+          color: 2774A4
+          item:
+            host: 'Datacom DM1200E by SNMP'
+            key: poe.power.budget
